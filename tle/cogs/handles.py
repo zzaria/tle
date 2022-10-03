@@ -251,6 +251,7 @@ class Handles(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
         self.font = ImageFont.truetype(constants.NOTO_SANS_CJK_BOLD_FONT_PATH, size=26) # font for ;handle pretty
+        self.converter = commands.MemberConverter()
 
     @commands.Cog.listener()
     @discord_common.once
@@ -334,7 +335,7 @@ class Handles(commands.Cog):
         if role_to_assign is not None and role_to_assign not in member.roles:
             await member.add_roles(role_to_assign, reason=reason)
 
-    @handle.command(brief='Set Codeforces handle of a user')
+    @handle.command(brief='Set Codeforces handle of a user', aliases=["link"])
     @commands.has_any_role(constants.TLE_ADMIN, constants.TLE_MODERATOR)
     async def set(self, ctx, member: discord.Member, handle: str):
         """Set Codeforces handle of a user."""
@@ -416,6 +417,8 @@ class Handles(commands.Cog):
             raise HandleCogError(f'Discord username for `{handle}` not found in database')
         user = cf_common.user_db.fetch_cf_user(handle)
         member = ctx.guild.get_member(user_id)
+        if member is None:
+            raise HandleCogError(f'{user_id} not found in the guild')
         embed = _make_profile_embed(member, user, mode='get')
         await ctx.send(embed=embed)
 

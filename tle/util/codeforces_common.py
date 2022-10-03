@@ -108,8 +108,18 @@ def is_nonstandard_contest(contest):
 
 def is_nonstandard_problem(problem):
     return (is_nonstandard_contest(cache2.contest_cache.get_contest(problem.contestId)) or
-            problem.tag_matches(['*special']))
+            problem.matches_all_tags(['*special']))
 
+def is_nonstandard_contest_strict(contest, div=None):
+    keywords=['global','technocup','hello','good bye']
+    for d in range(1,5):
+        if not div or d==div:
+            keywords.append(f'div. {d}')
+    return is_nonstandard_contest(contest) or not any(string in contest.name.lower() for string in keywords)
+
+def is_nonstandard_problem_strict(problem, div=None):
+    return (is_nonstandard_contest_strict(cache2.contest_cache.get_contest(problem.contestId), div) or
+            problem.matches_all_tags(['*special']))
 
 async def get_visited_contests(handles : [str]):
     """ Returns a set of contest ids of contests that any of the given handles
@@ -280,6 +290,17 @@ def parse_date(arg):
     except ValueError:
         raise ParamParseError(f'{arg} is an invalid date argument')
 
+def parse_tags(args, *, prefix):
+    tags = [x[1:] for x in args if x[0] == prefix]
+    return tags
+
+
+def parse_rating(args, default_value = None):
+    for arg in args:
+        if arg.isdigit():
+            return int(arg)
+    return default_value
+
 class SubFilter:
     def __init__(self, rated=True):
         self.team = False
@@ -288,6 +309,7 @@ class SubFilter:
         self.rlo, self.rhi = 500, 3800
         self.types = []
         self.tags = []
+        self.bantags = []
         self.contests = []
         self.indices = []
 
@@ -314,6 +336,10 @@ class SubFilter:
                 if len(arg) == 1:
                     raise ParamParseError('Problem tag cannot be empty.')
                 self.tags.append(arg[1:])
+            elif arg[0] == '~':
+                if len(arg) == 1:
+                    raise ParamParseError('Problem tag cannot be empty.')
+                self.bantags.append(arg[1:])
             elif arg[0:2] == 'd<':
                 self.dhi = min(self.dhi, parse_date(arg[2:]))
             elif arg[0:3] == 'd>=':
@@ -360,7 +386,8 @@ class SubFilter:
             contest = cache2.contest_cache.contest_by_id.get(problem.contestId, None)
             type_ok = submission.author.participantType in self.types
             date_ok = self.dlo <= submission.creationTimeSeconds < self.dhi
-            tag_ok = not self.tags or problem.tag_matches(self.tags)
+            tag_ok = problem.matches_all_tags(self.tags)
+            bantag_ok = not problem.matches_any_tag(self.bantags)
             index_ok = not self.indices or any(index.lower() == problem.index.lower() for index in self.indices)
             contest_ok = not self.contests or (contest and contest.matches(self.contests))
             team_ok = self.team or len(submission.author.members) == 1
@@ -372,7 +399,7 @@ class SubFilter:
                 problem_ok = (not contest or contest.id >= cf.GYM_ID_THRESHOLD
                               or not is_nonstandard_problem(problem))
                 rating_ok = True
-            if type_ok and date_ok and rating_ok and tag_ok and team_ok and problem_ok and contest_ok and index_ok:
+            if type_ok and date_ok and rating_ok and tag_ok and bantag_ok and team_ok and problem_ok and contest_ok and index_ok:
                 filtered_subs.append(submission)
         return filtered_subs
 

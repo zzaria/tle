@@ -11,7 +11,7 @@ class CSESError(Exception):
 session = aiohttp.ClientSession()
 
 cookies = {
-    'PHPSESSID': '5785c8efff6249c8ad0ee1833a6d0ae3cc779729',
+    'PHPSESSID': 'a8bf92047389d7f208a5ddf410fc4711fb04e7ea',
 }
 headers = {
     'Connection': 'keep-alive',
@@ -34,7 +34,7 @@ headers = {
 async def _fetch(url):
     async with session.get(url,headers=headers,cookies=cookies) as response:
         if response.status != 200:
-            raise CSESError(f"Bad response from CSES, status code {status}")
+            raise CSESError(f"Bad response from CSES, status code {response.status}")
         tree = html.fromstring(await response.read())
     return tree
 

@@ -36,7 +36,7 @@ class Codeforces(commands.Cog):
         if delta is not None and delta % 100 != 0:
             raise CodeforcesCogError('Delta must be a multiple of 100.')
 
-        if delta is not None and delta > _GITGUD_MAX_DELTA_VALUE or _GITGUD_MIN_DELTA_VALUE > delta:
+        if delta is not None and (delta > _GITGUD_MAX_DELTA_VALUE or _GITGUD_MIN_DELTA_VALUE > delta):
             raise CodeforcesCogError(f'Delta must range from {_GITGUD_MIN_DELTA_VALUE} to {_GITGUD_MAX_DELTA_VALUE}.')
 
         user_id = ctx.message.author.id
@@ -78,7 +78,7 @@ class Codeforces(commands.Cog):
         solved = {sub.problem.name for sub in submissions if sub.verdict == 'OK'}
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
                     if prob.name not in solved and prob.contestId in contests
-                    and abs(rating - prob.rating) <= 300]
+                    and abs(rating - prob.rating) <= 1000]
 
         if not problems:
             raise CodeforcesCogError('Problems not found within the search parameters')
@@ -97,32 +97,84 @@ class Codeforces(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.command(brief='Recommend a problem',
-                      usage='[tags...] [rating]')
+                      usage='[+tag..] [~tag..] [rating] [upsolve|openedcontests] [filter]')
     @cf_common.user_guard(group='gitgud')
     async def gimme(self, ctx, *args):
         handle, = await cf_common.resolve_handles(ctx, self.converter, ('!' + str(ctx.author),))
         rating = round(cf_common.user_db.fetch_cf_user(handle).effective_rating, -2)
-        tags = []
+        tags = cf_common.parse_tags(args, prefix='+')
+        bantags = cf_common.parse_tags(args, prefix='~')
+        upsolve=0
+        filterArg=False
+        all=False
+        erating=srating=rating
         for arg in args:
-            if arg.isdigit():
-                rating = int(arg)
-            else:
-                tags.append(arg)
+            if arg=="upsolve":
+                upsolve=1
+            elif arg=="upsolve2" or arg=="openedcontests":
+                upsolve=2
+            elif arg=="filter":
+                filterArg=True
+            elif arg=="all":
+                all=True
+            elif arg[0:3].isdigit():
+                ratings = arg.split("-")
+                rating=srating = int(ratings[0])
+                if (len(ratings) > 1): 
+                    erating = int(ratings[1])
+                else:
+                    erating = srating
 
         submissions = await cf.user.status(handle=handle)
         solved = {sub.problem.name for sub in submissions if sub.verdict == 'OK'}
 
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
-                    if prob.rating == rating and prob.name not in solved and
-                    not cf_common.is_contest_writer(prob.contestId, handle)]
-        if tags:
-            problems = [prob for prob in problems if prob.tag_matches(tags)]
+                if srating<=prob.rating and prob.rating <=erating
+                and prob.name not in solved 
+                and not cf_common.is_contest_writer(prob.contestId, handle)
+                and prob.matches_all_tags(tags)
+                and not prob.matches_any_tag(bantags)]
+        
+        if upsolve:
+            if upsolve==1:
+                resp = await cf.user.rating(handle=handle)
+                contests = {change.contestId for change in resp}
+            elif upsolve==2:
+                contests={sub.problem.contestId for sub in submissions if sub.verdict == 'OK'}
+            problems = [prob for prob in problems if prob.contestId in contests]
+
+        if filterArg:
+            def check(problem):
+                div=None
+                if rating>=2700:
+                    div=1
+                return (not cf_common.is_nonstandard_problem_strict(problem,div) and
+                        not cf_common.is_contest_writer(problem.contestId, handle))
+
+            problems = list(filter(check, problems))
 
         if not problems:
             raise CodeforcesCogError('Problems not found within the search parameters')
 
         problems.sort(key=lambda problem: cf_common.cache2.contest_cache.get_contest(
             problem.contestId).startTimeSeconds)
+
+        if all:
+            def make_line(problem):
+                data = (f'[{problem.name}]({problem.url})',
+                        f'[{problem.rating if problem.rating else "?"}]')
+                return '\N{EN SPACE}'.join(data)
+
+            def make_page(chunk):
+                title = f'Recommended Problems ({len(problems)} found)'
+                hist_str = '\n'.join(make_line(problem) for problem in chunk)
+                embed = discord_common.cf_color_embed(title=title,description=hist_str)
+                return None,embed
+
+            pages = [make_page(chunk) for chunk in paginator.chunkify(problems, 20)]
+            paginator.paginate(self.bot, ctx.channel, pages, wait_time=5 * 60, set_pagenum_footers=True)
+            return
+
 
         choice = max([random.randrange(len(problems)) for _ in range(2)])
         problem = problems[choice]
@@ -132,17 +184,17 @@ class Codeforces(commands.Cog):
         embed = discord.Embed(title=title, url=problem.url, description=desc)
         embed.add_field(name='Rating', value=problem.rating)
         if tags:
-            tagslist = ', '.join(problem.tag_matches(tags))
+            tagslist = ', '.join(problem.get_matched_tags(tags))
             embed.add_field(name='Matched tags', value=tagslist)
         await ctx.send(f'Recommended problem for `{handle}`', embed=embed)
 
     @commands.command(brief='List solved problems',
-                      usage='[handles] [+hardest] [+practice] [+contest] [+virtual] [+outof] [+team] [+tag..] [r>=rating] [r<=rating] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy] [c+marker..] [i+index..]')
+                      usage='[handles] [+hardest +easiest] [+practice] [+contest] [+virtual] [+outof] [+team] [+tag..] [~tag..] [r>=rating] [r<=rating] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy] [c+marker..] [i+index..]')
     async def stalk(self, ctx, *args):
         """Print problems solved by user sorted by time (default) or rating.
         All submission types are included by default (practice, contest, etc.)
         """
-        (hardest,), args = cf_common.filter_flags(args, ['+hardest'])
+        (hardest,easiest), args = cf_common.filter_flags(args, ['+hardest','+easiest'])
         filt = cf_common.SubFilter(False)
         args = filt.parse(args)
         handles = args or ('!' + str(ctx.author),)
@@ -156,6 +208,8 @@ class Codeforces(commands.Cog):
 
         if hardest:
             submissions.sort(key=lambda sub: (sub.problem.rating or 0, sub.creationTimeSeconds), reverse=True)
+        elif easiest:
+            submissions.sort(key=lambda sub: (sub.problem.rating or 9999, sub.creationTimeSeconds))
         else:
             submissions.sort(key=lambda sub: sub.creationTimeSeconds, reverse=True)
 
@@ -175,14 +229,36 @@ class Codeforces(commands.Cog):
         pages = [make_page(chunk) for chunk in paginator.chunkify(submissions[:100], 10)]
         paginator.paginate(self.bot, ctx.channel, pages, wait_time=5 * 60, set_pagenum_footers=True)
 
-    @commands.command(brief='Create a mashup', usage='[handles] [+tags]')
+    @commands.command(brief='',
+                      usage='[handles] [+practice] [+contest] [+virtual] [+outof] [+team] [+tag..] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy]')
+    async def power(self, ctx, *args):
+        filt = cf_common.SubFilter(False)
+        args = filt.parse(args)
+        handles = args or ('!' + str(ctx.author),)
+        handles = await cf_common.resolve_handles(ctx, self.converter, handles)
+        submissions = [await cf.user.status(handle=handle) for handle in handles]
+        submissions = [sub for subs in submissions for sub in subs]
+        submissions = filt.filter_subs(submissions)
+
+        if not submissions:
+            raise CodeforcesCogError('Submissions not found within the search parameters')
+        
+        submissions.sort(key=lambda sub: (sub.problem.rating or 0, sub.creationTimeSeconds))
+        power=0
+        decay=0.96
+        for sub in submissions:
+            power=power*decay+(sub.problem.rating or 0)*(1-decay)
+        await ctx.send(power)
+
+    @commands.command(brief='Create a mashup', usage='[handles] [+tag..] [~tag..]')
     async def mashup(self, ctx, *args):
         """Create a mashup contest using problems within +-100 of average rating of handles provided.
         Add tags with "+" before them.
         """
-        handles = [arg for arg in args if arg[0] != '+']
-        tags = [arg[1:] for arg in args if arg[0] == '+' and len(arg) > 1]
-
+        handles = [arg for arg in args if arg[0] not in '+~']
+        tags = cf_common.parse_tags(args, prefix='+')
+        bantags = cf_common.parse_tags(args, prefix='~')
+        
         handles = handles or ('!' + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.status(handle=handle) for handle in handles]
@@ -193,9 +269,9 @@ class Codeforces(commands.Cog):
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
                     if abs(prob.rating - rating) <= 100 and prob.name not in solved
                     and not any(cf_common.is_contest_writer(prob.contestId, handle) for handle in handles)
-                    and not cf_common.is_nonstandard_problem(prob)]
-        if tags:
-            problems = [prob for prob in problems if prob.tag_matches(tags)]
+                    and not cf_common.is_nonstandard_problem(prob)
+                    and prob.matches_all_tags(tags)
+                    and not prob.matches_any_tag(bantags)]
 
         if len(problems) < 4:
             raise CodeforcesCogError('Problems not found within the search parameters')
@@ -239,7 +315,10 @@ class Codeforces(commands.Cog):
                         prob.name not in noguds)]
 
         def check(problem):
-            return (not cf_common.is_nonstandard_problem(problem) and
+            div=None
+            if rating+delta>=2700:
+                div=1
+            return (not cf_common.is_nonstandard_problem_strict(problem,div) and
                     not cf_common.is_contest_writer(problem.contestId, handle))
 
         problems = list(filter(check, problems))

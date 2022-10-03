@@ -653,14 +653,15 @@ class RanklistCache:
                                 for handle in handles}
         ranklist = Ranklist(contest, problems, standings, now, is_rated=True)
         delta_by_handle = {}
+        mixed_ratings2=current_official_rating.copy()
         for handle in handles:
             mixed_ratings = current_official_rating.copy()
-            mixed_ratings[handle] = current_vc_rating.get(handle)
+            mixed_ratings2[handle]=mixed_ratings[handle] = current_vc_rating.get(handle)
             ranklist.predict(mixed_ratings)
             delta_by_handle[handle] = ranklist.delta_by_handle.get(handle, 0)
 
         ranklist.delta_by_handle = delta_by_handle
-        ranklist.set_prevRatings(current_official_rating)
+        ranklist.set_prevRatings(mixed_ratings2)
         return ranklist
 
     async def _fetch(self, contests):
