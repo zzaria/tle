@@ -1,5 +1,5 @@
 Note: this is a custom version of https://github.com/iampjeetsingh/TLE
-some changes:
+several changes:
 - rating and performance prediction in ranklist
 - plot performance
 - problem difficulty prediction
@@ -7,6 +7,7 @@ some changes:
 - case insensitive names
 - cses rankings (feel free to use the account)
 - increased limit for plot number of users and phase_days
+- some other stuff
 
 # TLE
 
