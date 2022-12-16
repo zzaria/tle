@@ -6,6 +6,7 @@ import os
 import discord
 from logging.handlers import TimedRotatingFileHandler
 from os import environ
+from dotenv import load_dotenv
 from pathlib import Path
 
 import seaborn as sns
@@ -48,7 +49,8 @@ def main():
     parser.add_argument('--nodb', action='store_true')
     args = parser.parse_args()
 
-    token = 'Nzk5NDc3OTQ1MjE1MDkwNjg4.YAEJ2w.Bq_f5PsXdVIYS1Muz2gbMmDHzAc'#environ.get('BOT_TOKEN')
+    load_dotenv()
+    token = os.getenv('BOT_TOKEN')  
     if not token:
         logging.error('Token required')
         return

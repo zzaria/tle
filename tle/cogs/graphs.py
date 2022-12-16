@@ -28,18 +28,20 @@ from tle.util import ranklist
 pd.plotting.register_matplotlib_converters()
 
 # A user is considered active if the duration since his last contest is not more than this
-CONTEST_ACTIVE_TIME_CUTOFF = 90 * 24 * 60 * 60 # 90 days
+CONTEST_ACTIVE_TIME_CUTOFF = 90 * 24 * 60 * 60  # 90 days
 
 
 class GraphCogError(commands.CommandError):
     pass
 
+
 def nice_sub_type(types):
-    nice_map = {'CONTESTANT':'Contest: {}',
-                'OUT_OF_COMPETITION':'Unofficial: {}',
-                'VIRTUAL':'Virtual: {}',
-                'PRACTICE':'Practice: {}'}
+    nice_map = {'CONTESTANT': 'Contest: {}',
+                'OUT_OF_COMPETITION': 'Unofficial: {}',
+                'VIRTUAL': 'Virtual: {}',
+                'PRACTICE': 'Practice: {}'}
     return [nice_map[t] for t in types]
+
 
 def _plot_rating(plot_data, mark):
     for ratings, when in plot_data:
@@ -53,6 +55,7 @@ def _plot_rating(plot_data, mark):
 
     gc.plot_rating_bg(cf.RATED_RANKS)
 
+
 def _plot_rating_by_date(resp, mark='o'):
     def gen_plot_data():
         for rating_changes in resp:
@@ -64,6 +67,7 @@ def _plot_rating_by_date(resp, mark='o'):
 
     _plot_rating(gen_plot_data(), mark)
     plt.gcf().autofmt_xdate()
+
 
 def _plot_rating_by_contest(resp, mark='o'):
     def gen_plot_data():
@@ -77,6 +81,7 @@ def _plot_rating_by_contest(resp, mark='o'):
             yield (ratings, indices)
 
     _plot_rating(gen_plot_data(), mark)
+
 
 def _classify_submissions(submissions):
     solved_by_type = {sub_type: [] for sub_type in cf.Party.PARTICIPANT_TYPES}
@@ -231,8 +236,8 @@ class Graphs(commands.Cog):
     @plot.command(brief='Plot Codeforces rating graph', usage='[+zoom] [+number] [+peak] [+perf] [handles...] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy]')
     async def rating(self, ctx, *args: str, plotperf=False):
         """Plots Codeforces rating graph for the handles provided."""
-        (zoom, peak,perf,number), args = cf_common.filter_flags(args, ['+zoom' , '+peak','+perf','+number'])
-        perf|=plotperf
+        (zoom, peak, perf, number), args = cf_common.filter_flags(args, ['+zoom', '+peak', '+perf', '+number'])
+        perf |= plotperf
         filt = cf_common.SubFilter()
         args = filt.parse(args)
         handles = args or ('!' + str(ctx.author),)
@@ -258,29 +263,28 @@ class Graphs(commands.Cog):
                     max_rate = data.newRating
                     res.append(data)
             return(res)
+
         def to_perf(user):
             res = []
-            stupidCfConvert=False
-            for i,change in enumerate(user):
-                if i==0 and change.ratingUpdateTimeSeconds>=1590315240:
-                    stupidCfConvert=True
-                if stupidCfConvert and i<6:
-                    adjustment=[900,550,300,150,50,0]
-                    aperf=(change.newRating+adjustment[i])*4-(change.oldRating+adjustment[i-1] if i else 1400)*3    
+            stupidCfConvert = False
+            for i, change in enumerate(user):
+                if i == 0 and change.ratingUpdateTimeSeconds >= 1590315240:
+                    stupidCfConvert = True
+                if stupidCfConvert and i < 6:
+                    adjustment = [900, 550, 300, 150, 50, 0]
+                    aperf = (change.newRating+adjustment[i])*4-(change.oldRating+adjustment[i-1] if i else 1400)*3
                 else:
-                    aperf=change.newRating*4-(change.oldRating or 1500)*3
-                temp=change._replace(newRating=aperf)
+                    aperf = change.newRating*4-(change.oldRating or 1500)*3
+                temp = change._replace(newRating=aperf)
                 res.append(temp)
             return(res)
-
 
         if perf:
             resp = [to_perf(user) for user in resp]
 
         if peak:
             resp = [max_prefix(user) for user in resp]
-        
-        
+
         resp = [filt.filter_rating_changes(rating_changes) for rating_changes in resp]
 
         plt.clf()
@@ -310,7 +314,7 @@ class Graphs(commands.Cog):
 
     @plot.command(brief='Plot Codeforces performance', usage='[+zoom] [+peak] [handles...] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy]')
     async def performance(self, ctx, *args: str):
-        await self.rating(ctx,*args,plotperf=True)
+        await self.rating(ctx, *args, plotperf=True)
 
     @plot.command(brief='Plot Codeforces extremes graph',
                   usage='[handles] [+solved] [+unsolved] [+nolegend]')
@@ -352,7 +356,7 @@ class Graphs(commands.Cog):
         await ctx.send(embed=embed, file=discord_file)
 
     @plot.command(brief="Show histogram of solved problems' rating on CF",
-                   usage='[handles] [+practice] [+contest] [+virtual] [+outof] [+team] [+tag..] [~tag..] [r>=rating] [r<=rating] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy] [phase_days=] [c+marker..] [i+index..]')
+                  usage='[handles] [+practice] [+contest] [+virtual] [+outof] [+team] [+tag..] [~tag..] [r>=rating] [r<=rating] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy] [phase_days=] [c+marker..] [i+index..]')
     async def solved(self, ctx, *args: str):
         """Shows a histogram of solved problems' rating on Codeforces for the handles provided.
         e.g. ;plot solved meooow +contest +virtual +outof +dp"""
@@ -381,7 +385,10 @@ class Graphs(commands.Cog):
             step = 100
             # shift the range to center the text
             hist_bins = list(range(filt.rlo - step // 2, filt.rhi + step // 2 + 1, step))
-            plt.hist(all_ratings, stacked=True, bins=hist_bins, label=labels)
+            _, _, patches = plt.hist(all_ratings, stacked=True, bins=hist_bins, label=labels)
+            if len(hist_bins)<=15:
+                plt.bar_label(patches[-1])
+                
             total = sum(map(len, all_ratings))
             plt.legend(title=f'{handle}: {total}', title_fontsize=plt.rcParams['legend.fontsize'],
                        bbox_to_anchor=(0, 1, 1, 0), loc='lower left', mode='expand', ncol=2)
@@ -410,12 +417,12 @@ class Graphs(commands.Cog):
         filt = cf_common.SubFilter()
         args = filt.parse(args)
         phase_days = 1
-        phase_days_default=True
+        phase_days_default = True
         handles = []
         for arg in args:
             if arg[0:11] == 'phase_days=':
                 phase_days = int(arg[11:])
-                phase_days_default=False
+                phase_days_default = False
             else:
                 handles.append(arg)
 
@@ -445,15 +452,15 @@ class Graphs(commands.Cog):
             dlo = min(itertools.chain.from_iterable(all_times)).date()
             dhi = min(dt.datetime.today() + dt.timedelta(days=1), dt.datetime.fromtimestamp(filt.dhi)).date()
             phase_cnt = math.ceil((dhi - dlo) / phase_time)
-            bins=min(40, phase_cnt) if phase_days_default else phase_cnt
+            bins = min(40, phase_cnt) if phase_days_default else phase_cnt
             plt.hist(
                 all_times,
                 stacked=True,
                 label=labels,
                 range=(dhi - phase_cnt * phase_time, dhi),
                 bins=bins,
-                linewidth=None if bins<=40 else 0
-                )
+                linewidth=None if bins <= 40 else 0
+            )
 
             total = sum(map(len, all_times))
             plt.legend(title=f'{handle}: {total}', title_fontsize=plt.rcParams['legend.fontsize'])
@@ -470,13 +477,13 @@ class Graphs(commands.Cog):
             dlo = min(itertools.chain.from_iterable(all_times)).date()
             dhi = min(dt.datetime.today() + dt.timedelta(days=1), dt.datetime.fromtimestamp(filt.dhi)).date()
             phase_cnt = math.ceil((dhi - dlo) / phase_time)
-            bins=min(40 // len(handles), phase_cnt) if phase_days_default else phase_cnt
+            bins = min(40 // len(handles), phase_cnt) if phase_days_default else phase_cnt
             plt.hist(
                 all_times,
                 range=(dhi - phase_cnt * phase_time, dhi),
                 bins=bins,
-                linewidth=2 if phase_cnt<=40 else 0
-                )
+                linewidth=2 if phase_cnt <= 40 else 0
+            )
             plt.legend(labels)
 
         # NOTE: In case of nested list, matplotlib decides type using 1st sublist,
@@ -603,7 +610,7 @@ class Graphs(commands.Cog):
         ratings = [r for r in ratings if r >= 0]
         assert ratings, 'Cannot histogram plot empty list of ratings'
 
-        assert 100%binsize == 0 # because bins is semi-hardcoded
+        assert 100 % binsize == 0  # because bins is semi-hardcoded
         bins = 1 + max(ratings) // binsize
 
         colors = []
@@ -625,11 +632,13 @@ class Graphs(commands.Cog):
             cent.append(round(100 * csum / users))
 
         x = [k * binsize for k in range(bins)]
-        label = [f'{r} ({c})' for r,c in zip(x, cent)]
+        label = [f'{r} ({c})' for r, c in zip(x, cent)]
 
-        l,r = 0,bins-1
-        while not height[l]: l += 1
-        while not height[r]: r -= 1
+        l, r = 0, bins-1
+        while not height[l]:
+            l += 1
+        while not height[r]:
+            r -= 1
         x = x[l:r+1]
         cent = cent[l:r+1]
         label = label[l:r+1]
@@ -670,7 +679,7 @@ class Graphs(commands.Cog):
                                 title='Rating distribution of server members')
 
     @plot.command(brief='Show Codeforces rating distribution', usage='[normal/log] [active/all] [contest_cutoff=5]')
-    async def cfdistrib(self, ctx, mode: str = 'log', activity = 'active', contest_cutoff: int = 5):
+    async def cfdistrib(self, ctx, mode: str = 'log', activity='active', contest_cutoff: int = 5):
         """Plots rating distribution of either active or all users on Codeforces, in either normal or log scale.
         Default mode is log, default activity is active (competed in last 90 days)
         Default contest cutoff is 5 (competed at least five times overall)
@@ -720,26 +729,26 @@ class Graphs(commands.Cog):
                     raise GraphCogError(f'User `{info.handle}` is not rated')
                 ix = bisect.bisect_left(ratings, info.rating)
                 cent = 100*ix/len(ratings)
-                users_to_mark[info.handle] = info.rating,cent
+                users_to_mark[info.handle] = info.rating, cent
 
         # Plot
         plt.clf()
-        fig,ax = plt.subplots(1)
+        fig, ax = plt.subplots(1)
         ax.plot(ratings, perc, color='#00000099')
 
         plt.xlabel('Rating')
         plt.ylabel('Percentile')
 
-        for pos in ['right','top','bottom','left']:
+        for pos in ['right', 'top', 'bottom', 'left']:
             ax.spines[pos].set_visible(False)
-        ax.tick_params(axis='both', which='both',length=0)
+        ax.tick_params(axis='both', which='both', length=0)
 
         # Color intervals by rank
-        for interval,color in zip(intervals,colors):
+        for interval, color in zip(intervals, colors):
             alpha = '99'
-            l,r = interval
+            l, r = interval
             col = color + alpha
-            rect = patches.Rectangle((l,-50), r-l, 200,
+            rect = patches.Rectangle((l, -50), r-l, 200,
                                      edgecolor='none',
                                      facecolor=col)
             ax.add_patch(rect)
@@ -788,11 +797,13 @@ class Graphs(commands.Cog):
         # Draw tick lines
         linecolor = '#00000022'
         inf = 10000
+
         def horz_line(y):
-            l = mlines.Line2D([-inf,inf], [y,y], color=linecolor)
+            l = mlines.Line2D([-inf, inf], [y, y], color=linecolor)
             ax.add_line(l)
+
         def vert_line(x):
-            l = mlines.Line2D([x,x], [-inf,inf], color=linecolor)
+            l = mlines.Line2D([x, x], [-inf, inf], color=linecolor)
             ax.add_line(l)
         for y in ax.get_yticks():
             horz_line(y)
@@ -992,7 +1003,6 @@ class Graphs(commands.Cog):
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
 
-
     @plot.command(brief='Show speed of solving problems by rating',
                   usage='[handles...] [+contest] [+virtual] [+outof] [+scatter] [+median] [r>=rating] [r<=rating] [d>=[[dd]mm]yyyy] [d<[[dd]mm]yyyy] [s=3]')
     async def speed(self, ctx, *args):
@@ -1078,7 +1088,7 @@ class Graphs(commands.Cog):
         # make xticks divisible by 100
         ticks = plt.gca().get_xticks()
         base = ticks[1] - ticks[0]
-        plt.gca().get_xaxis().set_major_locator(MultipleLocator(base = max(base // 100 * 100, 100)))
+        plt.gca().get_xaxis().set_major_locator(MultipleLocator(base=max(base // 100 * 100, 100)))
         discord_file = gc.get_current_figure_as_file()
         title = f'Plot of {"median" if use_median else "average"} time spent on a problem'
         embed = discord_common.cf_color_embed(title=title)

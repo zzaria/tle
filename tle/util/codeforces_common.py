@@ -111,7 +111,7 @@ def is_nonstandard_problem(problem):
             problem.matches_all_tags(['*special']))
 
 def is_nonstandard_contest_strict(contest, div=None):
-    keywords=['global','technocup','hello','good bye']
+    keywords=['global','technocup','hello','good bye','grakn forces', 'codefest']
     for d in range(1,5):
         if not div or d==div:
             keywords.append(f'div. {d}')
@@ -306,7 +306,7 @@ class SubFilter:
         self.team = False
         self.rated = rated
         self.dlo, self.dhi = 0, 10**10
-        self.rlo, self.rhi = 500, 3800
+        self.rlo, self.rhi = 700, 3600
         self.types = []
         self.tags = []
         self.bantags = []
