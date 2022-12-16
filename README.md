@@ -5,8 +5,9 @@ several changes:
 - problem difficulty prediction
 - extended gitgud range
 - case insensitive names
-- cses rankings (feel free to use the account)
+- cses rankings with account
 - increased limit for plot number of users and phase_days
+- better problem suggestions and filtering
 - some other stuff
 
 # TLE
