@@ -14,7 +14,7 @@ several changes:
 
 how to install:
 
-1. create `.env` file with BOT_TOKEN=(your discord bot token)
+1. create `.env` file, inside it write `BOT_TOKEN=(your discord bot token)`
 
 2. create and activate venv
 
