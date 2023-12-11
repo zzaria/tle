@@ -1,3 +1,5 @@
+# TLE
+
 Note: this is a custom version of https://github.com/iampjeetsingh/TLE
 several changes:
 - rating and performance prediction in ranklist
@@ -10,7 +12,18 @@ several changes:
 - better problem suggestions and filtering
 - some other stuff
 
-# TLE
+how to install:
+
+1. create `.env` file with BOT_TOKEN=(your discord bot token)
+
+2. create and activate venv
+
+3. in cmd run `pip install -r ./requirements.txt`
+
+4. run `run.bat`
+
+
+# original readme
 
 TLE is a Discord bot centered around Competitive Programming.
 
